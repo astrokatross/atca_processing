@@ -54,9 +54,12 @@ plt.rcParams["xtick.major.pad"] = 5.
 plt.rcParams["figure.figsize"] = [10., 4.5]
 
 def make_ms(files, visname):
-    importatca(
-        vis=visname, files=files, options="birdie,noac", edge=4
-    )
+    try:
+        importatca(
+            vis=visname, files=files, options="birdie,noac", edge=4
+        )
+    except:
+        logger.warning(f"Unable to read in ATCA data??? Something wrong... ")
     return 
 
 
@@ -144,16 +147,16 @@ def split_ms(visname, msname, field="", spw="", n_spw=1, antenna="", scan = "", 
     return
 
 def calibrate_ms(msname, sec, calfile, pri = "1934_cal_cx", ref = "CA04", solint="60s"):
-    if os.path.exists(f"{calfile}.G2"):
-        logger.debug("Already found cal file? Not going to overwrite it. Make sure generating correct caltables ")
+    setjy(
+        vis=msname,
+        field=pri,
+        scalebychan=True,
+        standard="Perley-Butler 2010",
+        usescratch=True,
+    )
+    if os.path.exists(f"{calfile}.G0"):
+        logger.debug(f"Found {calfile}.G0, skipping")
     else: 
-        setjy(
-            vis=msname,
-            field=pri,
-            scalebychan=True,
-            standard="Perley-Butler 2010",
-            usescratch=True,
-        )
         logger.debug(f"Performing gain calibration on {pri}")
         try: 
             gaincal(
@@ -167,7 +170,14 @@ def calibrate_ms(msname, sec, calfile, pri = "1934_cal_cx", ref = "CA04", solint
                 # minblperant=3,
                 solint=solint,
             )
-            logger.debug(f"Performing bandpass calibration on {pri}")
+        except:
+            logger.warning(f"Couldnt do first cal? ")
+            return 
+    if os.path.exists(f"{calfile}.B0"):
+        logger.debug(f"Found {calfile}.B0, skipping")
+    else: 
+        logger.debug(f"Performing bandpass calibration on {pri}")
+        try:
             bandpass(
                 vis=msname,
                 caltable=f"{calfile}.B0",
@@ -179,6 +189,13 @@ def calibrate_ms(msname, sec, calfile, pri = "1934_cal_cx", ref = "CA04", solint
                 gaintable=[f"{calfile}.G0"],
                 parang=True,
             )
+        except: 
+            logger.warning("Issue with cal? Couldn't do bandpass?")
+            return
+    if os.path.exists(f"{calfile}.G1"):
+        logger.debug(f"Found {calfile}.G1, skipping")
+    else: 
+        try:
             logger.debug(f"Determining gains on {sec}")
             gaincal(
                 vis=msname,
@@ -191,6 +208,14 @@ def calibrate_ms(msname, sec, calfile, pri = "1934_cal_cx", ref = "CA04", solint
                 solint="120s",
                 gaintable=[f"{calfile}.B0"],
             )
+        except: 
+            logger.warning("Issue with cal? COuldn't make .G1")
+            return 
+    if os.path.exists(f"{calfile}.B1"):
+        logger.debug(f"Found {calfile}.B1, skipping")
+    else: 
+        logger.debug(f"Performing gain calibration on {pri}")
+        try:
             bandpass(
                 vis=msname,
                 caltable=f"{calfile}.B1",
@@ -202,6 +227,12 @@ def calibrate_ms(msname, sec, calfile, pri = "1934_cal_cx", ref = "CA04", solint
                 gaintable=[f"{calfile}.G1"],
                 parang=True,
             )
+        except:
+            logger.warning("Issue with cal? Couldn't make .B1")
+    if os.path.exists(f"{calfile}.G2"):
+        logger.debug(f"Found {calfile}.G2, skipping")
+    else: 
+        try:
             logger.debug(f"Deriving gain calibration using {pri}")
             gaincal(
                 vis=msname,
@@ -229,18 +260,24 @@ def calibrate_ms(msname, sec, calfile, pri = "1934_cal_cx", ref = "CA04", solint
                 gaintable=[f"{calfile}.B1"],
                 append=True,
             )
-            logger.debug(
-                "Correcting the flux scale using comparison between the primary and secondary calibrator."
-            )
-            fluxscale(
-                vis=msname,
-                caltable=f"{calfile}.G2",
-                fluxtable=f"{calfile}.F0",
-                reference=pri,
-            )
         except:
-            logger.warning("Couldn't make calfiles!!! ")
-
+            logger.warning("Issue with cal? Coudln't do secondary gain?")
+            return 
+    try:
+        logger.debug(
+            "Correcting the flux scale using comparison between the primary and secondary calibrator."
+        )
+        fluxscale(
+            vis=msname,
+            caltable=f"{calfile}.G2",
+            fluxtable=f"{calfile}.F0",
+            reference=pri,
+        )
+    except:
+        logger.warning("Couldn't do final flux scale!  ")
+        return 
+    
+    logger.debug("Completed making all cal files ")
     flagmanager(vis=msname, mode="save", versionname="before_applycal")
     return
 
@@ -357,12 +394,10 @@ def flag_postcal(msname, sec, tar, pri="1934_cal_cx"):
 
 
 def slefcal_ms(calfile, srcms, tar, self_round="pcal0",solint="120s",minblperant=4,combine="",spwmap="",applymode="calonly",calmode="p",gaintable=[""]):
-    logger.debug(
-        "+ + + + + + + + + + + + + + + + +\n+  Self Cal +\n+ + + + + + + + + + + + + + + + +"
-    )
+    logger.debug("Running selfcal")
     gaincal(
         vis=srcms,
-        caltable=f"{calfile}_{self_round}.cal",
+        caltable=f"{self_round}_{calfile}.cal",
         field=tar,
         combine=combine,
         gaintype="G",
@@ -372,9 +407,9 @@ def slefcal_ms(calfile, srcms, tar, self_round="pcal0",solint="120s",minblperant
         minblperant=minblperant,
     )
     if gaintable[0] == "":
-        gaintable = f"{calfile}_{self_round}.cal"
+        gaintable = f"{self_round}_{calfile}.cal"
     else:
-        gaintable.append(f"{calfile}_{self_round}.cal")
+        gaintable.append(f"{self_round}_{calfile}.cal")
         print(gaintable)
     applycal(
         vis=srcms,
@@ -398,13 +433,29 @@ if __name__ == "__main__":
         description="Script to go through basic processing of continuum ATCA data"
     )
     parser.add_argument(
-        '--project',
+        '--cont',
+        default=True,
+        help="Option to search for products at each step first and then use them instead of starting from scratch. Default=True"
+    )
+    parser.add_argument(
+        '--applycal',
+        default=True,
+        help="Apply the cal solutions? This is regardless of continue, is set to false, will override continue and skip the apply step anyway "
+    )
+    parser.add_argument(
+        '--dir',
         type=str,
         default=".",
         help="Path to project directory containing data and where most things will be saved (default= ./)"
     )
     parser.add_argument(
-        "visname",
+        '--project',
+        type=str,
+        default="C3487",
+        help="The project code from ATCA to use for naming and for searching for all data files to make ms. default=C3487"
+    )
+    parser.add_argument(
+        "--visname",
         type=str,
         default="c3487_day0.ms",
         help="The visname to do initial flagging and from which the target ms is split default = c3487_day0.ms"
@@ -459,11 +510,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.verbose:
         logger.setLevel(logging.DEBUG)
+        
     
 
-    tar=args.tar
-    sec=args.tar
-    dir=args.project
+    tar=args.target
+    sec=args.sec
+    dir=args.dir
     pri=args.pri
 
 
@@ -476,6 +528,78 @@ if __name__ == "__main__":
         band = "L"
 
     msname = f"{dir}/{tar}_{band}.ms"
-
+    visname = f"{dir}/{args.visname}"
     calfile = f"{dir}/{tar}_cal_{band}"
 
+
+    files=[]
+    for f in os.listdir():
+        if f.endswith(f".{args.project}"):
+            files.append(f)
+
+    # Read in the ATCA data and make initial visname 
+    if args.cont is True:
+        logger.warning("Continue is on, checking if files exist before running make_ms")
+        if os.path.exists(f"{visname}"):
+            logger.debug(f"Found vis, not reading in the ATCA data")
+        else: 
+            make_ms(files, visname)    
+    elif args.cont is None: 
+        logger.warning(f"Found visname and continue is on so deleting ms")
+        os.system(f"rm -r {visname}")
+        os.system(f"rm -r {visname}.flagversions") 
+        make_ms(files, visname)
+    
+
+    # Flagging data 
+    if args.cont is True: 
+        logger.debug(f"Continue on: checking for flag versions before flagging ")
+        if os.path.exists(f"{visname}.flagversions"):
+            logger.debug(f"Found flag version for visname, not running the flagging")
+        else: 
+            logger.debug(f"I dunno this is random test")
+            flag_ms(visname)
+    else: 
+        logger.debug(f"This is second test ")
+        flag_ms(visname)
+
+
+    # Splitting main MS to have just target ms 
+    if args.cont is True:
+        logger.debug(f"Contunue on, checking if there is the target ms before splitting")
+        if os.path.exists(f"{msname}"):
+            logger.debug("Found msname, skipping split")
+        else: 
+            split_ms(visname, msname, field=f"{pri},{sec},{tar}", spw=args.spw, n_spw=args.nspw, datacolumn="data",listfile=f"listobs_{msname}.dat")
+    else: 
+        if os.path.exists(f"{msname}"):
+            os.system(f"rm -r {msname}")
+            os.system(f"rm -r {msname}.flagversions")
+            split_ms(visname, msname, field=f"{pri},{sec},{tar}", spw=args.spw, n_spw=args.nspw, datacolumn="data",listfile=f"listobs_{msname}.dat")
+            logger.debug(f"remade split version")
+    
+
+
+    # Generating calibration solutions 
+    if args.cont is True: 
+        logger.debug(f"Continue on: Looking for calibration files before trying calibation")
+        if os.path.exists(f"{calfile}.G2"):
+            logger.debug("Found last calfile needed so skipping generating cal solutions")
+        else: 
+            calibrate_ms(msname, sec, calfile, pri=pri,ref = args.ref)
+    else: 
+        os.system(f"rm -r {calfile}*")
+        calibrate_ms(msname, sec, calfile, pri=pri,ref = args.ref)
+
+
+
+    # Applying cal solutions 
+    if args.applycal is True: 
+        logger.debug(f"Apply on: Applying solutions now ")
+        applycal_ms(calfile, msname, sec, tar, pri=pri)
+    else: 
+        logger.warning(f"NOT APPLYING CAL! ")
+
+    # Flagging calibrated ms 
+    flag_postcal(msname, sec, tar, pri=pri)
+    
