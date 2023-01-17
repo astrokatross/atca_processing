@@ -356,14 +356,14 @@ def flag_postcal(msname, sec, tar, pri="1934_cal_cx"):
 
 
 
-def slefcal_ms(calfile, srcms, tar, self_round="pcal0",solint="120s",minblperant=4,combine="",spwmap="",applymode="calonly",calmode="p",field="0",gaintable=[""]):
+def slefcal_ms(calfile, srcms, tar, self_round="pcal0",solint="120s",minblperant=4,combine="",spwmap="",applymode="calonly",calmode="p",gaintable=[""]):
     logger.debug(
         "+ + + + + + + + + + + + + + + + +\n+  Self Cal +\n+ + + + + + + + + + + + + + + + +"
     )
     gaincal(
         vis=srcms,
         caltable=f"{calfile}_{self_round}.cal",
-        field=field,
+        field=tar,
         combine=combine,
         gaintype="G",
         calmode=calmode,
@@ -380,7 +380,7 @@ def slefcal_ms(calfile, srcms, tar, self_round="pcal0",solint="120s",minblperant
         vis=srcms,
         gaintable=gaintable,
         parang=True,
-        field=field,
+        field=tar,
         spwmap=spwmap,
         applymode=applymode,
         flagbackup=False,
@@ -390,7 +390,8 @@ def slefcal_ms(calfile, srcms, tar, self_round="pcal0",solint="120s",minblperant
     return
 
 
-
+# TODO: Currnetly only calibrates assuming 1 spw but gives options for it to split to multiple...
+# TODO: Add continue option, where it always checks if there's something there already and uses it otherwise deletes and does it again 
 
 if __name__ == "__main__":
     parser = ArgumentParser(
@@ -401,6 +402,12 @@ if __name__ == "__main__":
         type=str,
         default=".",
         help="Path to project directory containing data and where most things will be saved (default= ./)"
+    )
+    parser.add_argument(
+        "visname",
+        type=str,
+        default="c3487_day0.ms",
+        help="The visname to do initial flagging and from which the target ms is split default = c3487_day0.ms"
     )
     parser.add_argument(
         '--target',
@@ -426,7 +433,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--nspw",
-        tpye=int,
+        type=int,
         default=1,
         help="Number of spws to split into, default=1"
     )
@@ -438,7 +445,6 @@ if __name__ == "__main__":
     )
 
 
-
     parser.add_argument(
         '-v',
         '--verbose',
@@ -446,6 +452,7 @@ if __name__ == "__main__":
         default=False,
         help='Enable extra logging'
     )
+    
 
 
 
@@ -453,3 +460,22 @@ if __name__ == "__main__":
     if args.verbose:
         logger.setLevel(logging.DEBUG)
     
+
+    tar=args.tar
+    sec=args.tar
+    dir=args.project
+    pri=args.pri
+
+
+# TODO: Check this actually works? 
+    if args.spw == "0":
+        band = "C"
+    elif args.spw =="1":
+        band = "X"
+    elif args.spw == "2":
+        band = "L"
+
+    msname = f"{dir}/{tar}_{band}.ms"
+
+    calfile = f"{dir}/{tar}_cal_{band}"
+
