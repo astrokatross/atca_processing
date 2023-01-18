@@ -316,9 +316,14 @@ def applycal_ms(calfile, msname, sec, tar, pri = "1934_cal_cx"):
         parang=True,
         flagbackup=False,
     )
+    if args.plots is True: 
+        plotms(vis=msname, plotfile=f"{calfile}_{pri}_amppostcal.png",xaxis='frequency', yaxis='amp', ydatacolumn='corrected', field=pri,correlation="XX", showgui=False, overwrite=True)
+        plotms(vis=msname, plotfile=f"{calfile}_{pri}_phasepostcal.png",xaxis='frequency', yaxis='phase', ydatacolumn='corrected', field=pri,correlation="XX", showgui=False, overwrite=True)
+        plotms(vis=msname, plotfile=f"{calfile}_{tar}_phasepostcal.png",xaxis='frequency', yaxis='phase', ydatacolumn='corrected', field=pri,correlation="XX", showgui=False, overwrite=True)
+        plotms(vis=msname, plotfile=f"{calfile}_{tar}_amppostcal.png",xaxis='frequency', yaxis='amp', ydatacolumn='corrected', field=pri,correlation="XX", showgui=False, overwrite=True)
     return
 
-def flag_postcal(msname, sec, tar, pri="1934_cal_cx"):
+def flag_postcal(msname, sec, tar, calfile, pri="1934_cal_cx"):
 
     flagmanager(vis=msname, mode="save", versionname="before_rflag")
     flagdata(
@@ -387,17 +392,68 @@ def flag_postcal(msname, sec, tar, pri="1934_cal_cx"):
         extendflags=False,
         flagbackup=False,
     )
-
+    if args.plots is True: 
+        plotms(vis=msname, plotfile=f"{calfile}_{pri}_amppostcalflag.png",xaxis='frequency', yaxis='amp', ydatacolumn='corrected', field=pri,correlation="XX", showgui=False, overwrite=True)
+        plotms(vis=msname, plotfile=f"{calfile}_{pri}_phasepostcalflag.png",xaxis='frequency', yaxis='phase', ydatacolumn='corrected', field=pri,correlation="XX", showgui=False, overwrite=True)
+        plotms(vis=msname, plotfile=f"{calfile}_{tar}_phasepostcalflag.png",xaxis='frequency', yaxis='phase', ydatacolumn='corrected', field=pri,correlation="XX", showgui=False, overwrite=True)
+        plotms(vis=msname, plotfile=f"{calfile}_{tar}_amppostcalflag.png",xaxis='frequency', yaxis='amp', ydatacolumn='corrected', field=pri,correlation="XX", showgui=False, overwrite=True)
     return 
 
 
 
+def imgmfs_ms(imagems, imagename, field="0", spw="", uvrange="", niter=3000, nterms=1, mode="mfs", antenna="",weighting="briggs", robust=-0.5, imsize=2250, cell="0.5arcsec", interactive=True, scan="", datacolumn="corrected"):
+    print("Initiating interactive cleaning")
 
-def slefcal_ms(calfile, srcms, tar, self_round="pcal0",solint="120s",minblperant=4,combine="",spwmap="",applymode="calonly",calmode="p",gaintable=[""]):
+    tclean(
+        vis=imagems,
+        imagename=f"{imagename}",
+        specmode=mode,
+        nterms=nterms,
+        niter=niter,
+        imsize=imsize,
+        cell=cell,
+        weighting=weighting,
+        robust=robust,
+        antenna=antenna,
+        spw=spw,
+        field=field,
+        interactive=interactive,
+        savemodel="modelcolumn",
+        pbcor=False,
+        uvrange=uvrange,
+        scan=scan,
+        datacolumn=datacolumn,
+    )
+    tclean(
+        vis=imagems,
+        imagename=f"{imagename}",
+        specmode=mode,
+        nterms=nterms,
+        niter=0,
+        spw=spw,
+        field=field,
+        imsize=imsize,
+        cell=cell,
+        weighting=weighting,
+        robust=robust,
+        antenna=antenna,
+        interactive=interactive,
+        savemodel="modelcolumn",
+        pbcor=False,
+        calcres=False,
+        calcpsf=False,
+        uvrange=uvrange,
+        datacolumn=datacolumn,
+    )
+    return
+
+
+
+def slefcal_ms(calfile, srcms, tar, selfround="0",solint="60s",minblperant=4,combine="",spwmap="",applymode="",calmode="p",gaintable=[""],solnorm=False):
     logger.debug("Running selfcal")
     gaincal(
         vis=srcms,
-        caltable=f"{self_round}_{calfile}.cal",
+        caltable=f"{calfile}_self{selfround}.cal",
         field=tar,
         combine=combine,
         gaintype="G",
@@ -405,12 +461,13 @@ def slefcal_ms(calfile, srcms, tar, self_round="pcal0",solint="120s",minblperant
         solint=solint,
         gaintable=gaintable,
         minblperant=minblperant,
+        solnorm=solnorm
     )
     if gaintable[0] == "":
-        gaintable = f"{self_round}_{calfile}.cal"
+        gaintable = [f"{calfile}_self{selfround}.cal"]
     else:
-        gaintable.append(f"{self_round}_{calfile}.cal")
-        print(gaintable)
+        gaintable.append(f"{calfile}_self{selfround}.cal")
+        logger.debug(f"{gaintable}")
     applycal(
         vis=srcms,
         gaintable=gaintable,
@@ -420,13 +477,12 @@ def slefcal_ms(calfile, srcms, tar, self_round="pcal0",solint="120s",minblperant
         applymode=applymode,
         flagbackup=False,
     )
-    flagmanager(vis=srcms, mode="save", versionname=f"post {self_round}")
+    flagmanager(vis=srcms, mode="save", versionname=f"post {selfround}")
     
-    return
+    return gaintable 
 
 
 # TODO: Currnetly only calibrates assuming 1 spw but gives options for it to split to multiple...
-# TODO: Add continue option, where it always checks if there's something there already and uses it otherwise deletes and does it again 
 
 if __name__ == "__main__":
     parser = ArgumentParser(
@@ -441,6 +497,16 @@ if __name__ == "__main__":
         '--applycal',
         default=True,
         help="Apply the cal solutions? This is regardless of continue, is set to false, will override continue and skip the apply step anyway "
+    )
+    parser.add_argument(
+        "--plots",
+        default=True,
+        help="Plot things like cal phase and amplitude of cals. Default = True "
+    )
+    parser.add_argument(
+        "--flag6",
+        default=True, 
+        help="Flag antenna 6 altogether for compact configs of ATCA, default=True"
     )
     parser.add_argument(
         '--dir',
@@ -527,10 +593,11 @@ if __name__ == "__main__":
     elif args.spw == "2":
         band = "L"
 
+    selfround = "0"
     msname = f"{dir}/{tar}_{band}.ms"
     visname = f"{dir}/{args.visname}"
     calfile = f"{dir}/{tar}_cal_{band}"
-
+    imagename = f"{dir}/{tar}_{band}_self"
 
     files=[]
     for f in os.listdir():
@@ -544,12 +611,14 @@ if __name__ == "__main__":
             logger.debug(f"Found vis, not reading in the ATCA data")
         else: 
             make_ms(files, visname)    
-    elif args.cont is None: 
+    else: 
         logger.warning(f"Found visname and continue is on so deleting ms")
         os.system(f"rm -r {visname}")
         os.system(f"rm -r {visname}.flagversions") 
         make_ms(files, visname)
     
+    if args.flag6 is True:
+        flagdata(vis=visname, mode="manual", antenna="5")
 
     # Flagging data 
     if args.cont is True: 
@@ -557,10 +626,8 @@ if __name__ == "__main__":
         if os.path.exists(f"{visname}.flagversions"):
             logger.debug(f"Found flag version for visname, not running the flagging")
         else: 
-            logger.debug(f"I dunno this is random test")
             flag_ms(visname)
     else: 
-        logger.debug(f"This is second test ")
         flag_ms(visname)
 
 
@@ -597,9 +664,129 @@ if __name__ == "__main__":
     if args.applycal is True: 
         logger.debug(f"Apply on: Applying solutions now ")
         applycal_ms(calfile, msname, sec, tar, pri=pri)
+        flag_postcal(msname, sec, tar, calfile, pri=pri)
     else: 
         logger.warning(f"NOT APPLYING CAL! ")
 
-    # Flagging calibrated ms 
-    flag_postcal(msname, sec, tar, pri=pri)
     
+    # Running first initial imaging 
+    if args.cont is True: 
+        logger.debug(f"Continue on: looking for images before starting again")
+        if os.path.exists(f"{imagename}{selfround}.image"):
+            logger.debug(f"Found image, not reimaging")
+        else:
+            temp_imname = f"{imagename}{selfround}" 
+            imgmfs_ms(msname, temp_imname, field=tar)
+    else: 
+        os.system(f"rm -r {imagename}{selfround}*")
+        temp_imname = f"{imagename}{selfround}"
+        imgmfs_ms(msname, temp_imname, field=tar)
+
+
+# TODO: change self so that it just keeps going till it reaches the number specified 
+    # Running first round of selfcal
+    selfround="1"
+    temp_imname = f"{imagename}{selfround}"
+    if args.cont is True: 
+        logger.debug(f"Continue on: checking for selfcal round{selfround}")
+        if os.path.exists(f"{calfile}_self{selfround}.cal"):
+            logger.debug(f"Found first round cal solution, NOT APPLYING!")
+            gaintable = [f"{calfile}_self{selfround}.cal"]
+        else: 
+            gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround)
+    else: 
+        gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround)
+    
+    # Running first self imaging 
+    if args.cont is True: 
+        logger.debug(f"Continue on: looking for images before starting again")
+        if os.path.exists(f"{imagename}{selfround}.image"):
+            logger.debug(f"Found image, not reimaging")
+        else:
+            temp_imname = f"{imagename}{selfround}" 
+            imgmfs_ms(msname, temp_imname, field=tar)
+    else: 
+        os.system(f"rm -r {imagename}{selfround}*")
+        temp_imname = f"{imagename}{selfround}"
+        imgmfs_ms(msname, temp_imname, field=tar)    
+
+    # Running second round of selfcal
+    selfround="2"
+    temp_imname = f"{imagename}{selfround}"
+    if args.cont is True: 
+        logger.debug(f"Continue on: checking for selfcal round{selfround}")
+        if os.path.exists(f"{calfile}_self{selfround}.cal"):
+            logger.debug(f"Found first round cal solution, NOT APPLYING!")
+            gaintable = [f"{calfile}_self1.cal", f"{calfile}_self{selfround}.cal"]
+        else: 
+            gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround, solint="30s", gaintable=gaintable)
+    else: 
+        gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround, solint="30s", gaintable=gaintable)
+    
+    # Running second self imaging 
+    if args.cont is True: 
+        logger.debug(f"Continue on: looking for images before starting again")
+        if os.path.exists(f"{imagename}{selfround}.image"):
+            logger.debug(f"Found image, not reimaging")
+        else:
+            temp_imname = f"{imagename}{selfround}" 
+            imgmfs_ms(msname, temp_imname, field=tar)
+    else: 
+        os.system(f"rm -r {imagename}{selfround}*")
+        temp_imname = f"{imagename}{selfround}"
+        imgmfs_ms(msname, temp_imname, field=tar)    
+
+
+    # Running third round of selfcal
+    selfround="3"
+    temp_imname = f"{imagename}{selfround}"
+    if args.cont is True: 
+        logger.debug(f"Continue on: checking for selfcal round{selfround}")
+        if os.path.exists(f"{calfile}_self{selfround}.cal"):
+            logger.debug(f"Found first round cal solution, NOT APPLYING!")
+            gaintable = [f"{calfile}_self1.cal", f"{calfile}_self2.cal", f"{calfile}_self{selfround}.cal"]
+        else: 
+            gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround, solint="int", gaintable=gaintable)
+    else: 
+        gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround, solint="int", gaintable=gaintable)
+    
+    # Running third self imaging 
+    if args.cont is True: 
+        logger.debug(f"Continue on: looking for images before starting again")
+        if os.path.exists(f"{imagename}{selfround}.image"):
+            logger.debug(f"Found image, not reimaging")
+        else:
+            temp_imname = f"{imagename}{selfround}" 
+            imgmfs_ms(msname, temp_imname, field=tar)
+    else: 
+        os.system(f"rm -r {imagename}{selfround}*")
+        temp_imname = f"{imagename}{selfround}"
+        imgmfs_ms(msname, temp_imname, field=tar)    
+
+
+
+    # Running final amp and phase round of selfcal
+    selfround="4"
+    temp_imname = f"{imagename}{selfround}"
+    if args.cont is True: 
+        logger.debug(f"Continue on: checking for selfcal round{selfround}")
+        if os.path.exists(f"{calfile}_self{selfround}.cal"):
+            logger.debug(f"Found first round cal solution, NOT APPLYING!")
+            gaintable = [f"{calfile}_self1.cal", f"{calfile}_self2.cal", f"{calfile}_self{selfround}.cal"]
+        else: 
+            gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround, solint="inf", gaintable=gaintable,solnorm=True, calmode="ap")
+    else: 
+        gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround, solint="inf", gaintable=gaintable,solnorm=True, calmode="ap")
+    
+    # Running third self imaging 
+    if args.cont is True: 
+        logger.debug(f"Continue on: looking for images before starting again")
+        if os.path.exists(f"{imagename}{selfround}.image"):
+            logger.debug(f"Found image, not reimaging")
+        else:
+            temp_imname = f"{imagename}{selfround}" 
+            imgmfs_ms(msname, temp_imname, field=tar)
+    else: 
+        os.system(f"rm -r {imagename}{selfround}*")
+        temp_imname = f"{imagename}{selfround}"
+        imgmfs_ms(msname, temp_imname, field=tar)  
