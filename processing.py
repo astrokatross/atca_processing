@@ -116,9 +116,6 @@ def flag_ms(visname):
     return
 
 def split_ms(visname, msname, field="", spw="", n_spw=1, antenna="", scan = "", datacolumn="corrected",listfile=""):
-    os.system(f"rm -r {msname}")
-    os.system(f"rm -r {msname}.flagversions")
-    os.system("rm -r *.last")
     try: 
         mstransform(
             vis=visname,
@@ -319,8 +316,8 @@ def applycal_ms(calfile, msname, sec, tar, pri = "1934_cal_cx"):
     if args.plots is True: 
         plotms(vis=msname, plotfile=f"{calfile}_{pri}_amppostcal.png",xaxis='frequency', yaxis='amp', ydatacolumn='corrected', field=pri,correlation="XX", showgui=False, overwrite=True)
         plotms(vis=msname, plotfile=f"{calfile}_{pri}_phasepostcal.png",xaxis='frequency', yaxis='phase', ydatacolumn='corrected', field=pri,correlation="XX", showgui=False, overwrite=True)
-        plotms(vis=msname, plotfile=f"{calfile}_{tar}_phasepostcal.png",xaxis='frequency', yaxis='phase', ydatacolumn='corrected', field=pri,correlation="XX", showgui=False, overwrite=True)
-        plotms(vis=msname, plotfile=f"{calfile}_{tar}_amppostcal.png",xaxis='frequency', yaxis='amp', ydatacolumn='corrected', field=pri,correlation="XX", showgui=False, overwrite=True)
+        plotms(vis=msname, plotfile=f"{calfile}_{tar}_phasepostcal.png",xaxis='frequency', yaxis='phase', ydatacolumn='corrected', field=tar,correlation="XX", showgui=False, overwrite=True)
+        plotms(vis=msname, plotfile=f"{calfile}_{tar}_amppostcal.png",xaxis='frequency', yaxis='amp', ydatacolumn='corrected', field=tar,correlation="XX", showgui=False, overwrite=True)
     return
 
 def flag_postcal(msname, sec, tar, calfile, pri="1934_cal_cx"):
@@ -328,75 +325,26 @@ def flag_postcal(msname, sec, tar, calfile, pri="1934_cal_cx"):
     flagmanager(vis=msname, mode="save", versionname="before_rflag")
     flagdata(
         vis=msname,
-        mode="rflag",
-        field=pri,
+        mode="tfcrop",
+        field=f"{pri},{sec},{tar}",
         datacolumn="corrected",
-        action="apply",
-        display="report",
-        correlation="ABS_ALL",
-        timedevscale=3.0,
-        freqdevscale=3.0,
-        winsize=3,
-        combinescans=True,
-        ntime="9999999min",
-        extendflags=False,
-        flagbackup=False,
-    )
-    flagdata(
-        vis=msname,
-        mode="rflag",
-        field=sec,
-        datacolumn="corrected",
-        action="apply",
-        display="report",
-        correlation="ABS_ALL",
-        timedevscale=3.0,
-        freqdevscale=3.0,
-        winsize=3,
-        combinescans=True,
-        ntime="9999999min",
-        extendflags=False,
-        flagbackup=False,
+        # growfreq=80,
+        # growaround=True,
+        # flagnearfreq=True,
     )
     flagdata(
         vis=msname,
         mode="extend",
-        field=pri + "," + sec,
-        action="apply",
-        display="report",
-        flagbackup=False,
-        extendpols=True,
-        correlation="",
-        growtime=95.0,
-        growfreq=95.0,
-        growaround=True,
-        flagneartime=False,
-        flagnearfreq=False,
-        combinescans=True,
-        ntime="9999999min",
-    )
-
-    flagdata(
-        vis=msname,
-        mode="rflag",
-        field=tar,
-        datacolumn="corrected",
-        action="apply",
-        display="report",
-        correlation="ABS_ALL",
-        timedevscale=3.0,
-        freqdevscale=3.0,
-        winsize=3,
-        combinescans=True,
-        ntime="9999999min",
-        extendflags=False,
-        flagbackup=False,
+        field=f"{pri},{sec},{tar}",
+        # growfreq=80,
+        # growaround=True,
+        # flagnearfreq=True,
     )
     if args.plots is True: 
         plotms(vis=msname, plotfile=f"{calfile}_{pri}_amppostcalflag.png",xaxis='frequency', yaxis='amp', ydatacolumn='corrected', field=pri,correlation="XX", showgui=False, overwrite=True)
         plotms(vis=msname, plotfile=f"{calfile}_{pri}_phasepostcalflag.png",xaxis='frequency', yaxis='phase', ydatacolumn='corrected', field=pri,correlation="XX", showgui=False, overwrite=True)
-        plotms(vis=msname, plotfile=f"{calfile}_{tar}_phasepostcalflag.png",xaxis='frequency', yaxis='phase', ydatacolumn='corrected', field=pri,correlation="XX", showgui=False, overwrite=True)
-        plotms(vis=msname, plotfile=f"{calfile}_{tar}_amppostcalflag.png",xaxis='frequency', yaxis='amp', ydatacolumn='corrected', field=pri,correlation="XX", showgui=False, overwrite=True)
+        plotms(vis=msname, plotfile=f"{calfile}_{tar}_phasepostcalflag.png",xaxis='frequency', yaxis='phase', ydatacolumn='corrected', field=tar,correlation="XX", showgui=False, overwrite=True)
+        plotms(vis=msname, plotfile=f"{calfile}_{tar}_amppostcalflag.png",xaxis='frequency', yaxis='amp', ydatacolumn='corrected', field=tar,correlation="XX", showgui=False, overwrite=True)
     return 
 
 
@@ -523,8 +471,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--visname",
         type=str,
-        default="c3487_day0.ms",
-        help="The visname to do initial flagging and from which the target ms is split default = c3487_day0.ms"
+        default="c3487_day0_cx.ms",
+        help="The visname to do initial flagging and from which the target ms is split default = c3487_day0_cx.ms"
     )
     parser.add_argument(
         '--target',
@@ -543,10 +491,10 @@ if __name__ == "__main__":
         help="String with field name for primary bandpass calibration. (default= 1934_cal_cx)"
     )
     parser.add_argument(
-        '--spw',
+        '--band',
         type=str,
-        default="0",
-        help="String for spw number from main ms file to extract and process, (default='0')"
+        default="cx",
+        help="String for spw number from main ms file to extract and process, (default='cx')"
     )
     parser.add_argument(
         "--nspw",
@@ -583,21 +531,22 @@ if __name__ == "__main__":
     sec=args.sec
     dir=args.dir
     pri=args.pri
-
+    band=args.band
 
 # TODO: Check this actually works? 
-    if args.spw == "0":
-        band = "C"
-    elif args.spw =="1":
-        band = "X"
-    elif args.spw == "2":
-        band = "L"
+    # if args.spw == "0,1":
+    #     band = "cx"
+    # elif args.spw =="2,3":
+    #     band = "l"
+    # elif args.spw == "2":
+    #     band = "L"
 
     selfround = "0"
     msname = f"{dir}/{tar}_{band}.ms"
+    tarms = f"{dir}/{tar}_{band}_cal.ms"
     visname = f"{dir}/{args.visname}"
-    calfile = f"{dir}/{tar}_cal_{band}"
-    imagename = f"{dir}/{tar}_{band}_self"
+    calfile = f"{dir}/{sec}_cal_{band}"
+    imagename = f"{dir}/{tar}_{band}_spw"
 
     files=[]
     for f in os.listdir():
@@ -631,19 +580,19 @@ if __name__ == "__main__":
         flag_ms(visname)
 
 
-    # Splitting main MS to have just target ms 
-    if args.cont is True:
-        logger.debug(f"Contunue on, checking if there is the target ms before splitting")
-        if os.path.exists(f"{msname}"):
-            logger.debug("Found msname, skipping split")
-        else: 
-            split_ms(visname, msname, field=f"{pri},{sec},{tar}", spw=args.spw, n_spw=args.nspw, datacolumn="data",listfile=f"listobs_{msname}.dat")
-    else: 
-        if os.path.exists(f"{msname}"):
-            os.system(f"rm -r {msname}")
-            os.system(f"rm -r {msname}.flagversions")
-            split_ms(visname, msname, field=f"{pri},{sec},{tar}", spw=args.spw, n_spw=args.nspw, datacolumn="data",listfile=f"listobs_{msname}.dat")
-            logger.debug(f"remade split version")
+    # # Splitting main MS to have just target ms 
+    # if args.cont is True:
+    #     logger.debug(f"Contunue on, checking if there is the target ms before splitting")
+    #     if os.path.exists(f"{msname}"):
+    #         logger.debug("Found msname, skipping split")
+    #     else: 
+    #         split_ms(visname, msname, field=f"{pri},{sec},{tar}", spw=args.spw, n_spw=args.nspw, datacolumn="data",listfile=f"listobs_{msname}.dat")
+    # else: 
+    #     if os.path.exists(f"{msname}"):
+    #         os.system(f"rm -r {msname}")
+    #         os.system(f"rm -r {msname}.flagversions")
+    #         split_ms(visname, msname, field=f"{pri},{sec},{tar}", spw=args.spw, n_spw=args.nspw, datacolumn="data",listfile=f"listobs_{msname}.dat")
+    #         logger.debug(f"remade split version")
     
 
 
@@ -653,140 +602,158 @@ if __name__ == "__main__":
         if os.path.exists(f"{calfile}.G2"):
             logger.debug("Found last calfile needed so skipping generating cal solutions")
         else: 
-            calibrate_ms(msname, sec, calfile, pri=pri,ref = args.ref)
+            calibrate_ms(visname, sec, calfile, pri=pri,ref = args.ref)
     else: 
         os.system(f"rm -r {calfile}*")
-        calibrate_ms(msname, sec, calfile, pri=pri,ref = args.ref)
+        calibrate_ms(visname, sec, calfile, pri=pri,ref = args.ref)
 
 
 
     # Applying cal solutions 
     if args.applycal is True: 
         logger.debug(f"Apply on: Applying solutions now ")
-        applycal_ms(calfile, msname, sec, tar, pri=pri)
-        flag_postcal(msname, sec, tar, calfile, pri=pri)
+        applycal_ms(calfile, visname, sec, tar, pri=pri)
     else: 
         logger.warning(f"NOT APPLYING CAL! ")
 
-    
+    flag_postcal(visname, sec, tar, calfile, pri=pri)
+
     # Running first initial imaging 
     if args.cont is True: 
         logger.debug(f"Continue on: looking for images before starting again")
-        if os.path.exists(f"{imagename}{selfround}.image"):
+        if os.path.exists(f"{imagename}0.image"):
             logger.debug(f"Found image, not reimaging")
         else:
-            temp_imname = f"{imagename}{selfround}" 
-            imgmfs_ms(msname, temp_imname, field=tar)
+            temp_imname = f"{imagename}0" 
+            imgmfs_ms(visname, temp_imname, field=tar, spw="0")
+            temp_imname = f"{imagename}1" 
+            imgmfs_ms(visname, temp_imname, field=tar, spw="1")
     else: 
-        os.system(f"rm -r {imagename}{selfround}*")
-        temp_imname = f"{imagename}{selfround}"
-        imgmfs_ms(msname, temp_imname, field=tar)
+        os.system(f"rm -r {imagename}*")
+        temp_imname = f"{imagename}0"
+        imgmfs_ms(visname, temp_imname, field=tar, spw="0")
+        temp_imname = f"{imagename}1"
+        imgmfs_ms(visname, temp_imname, field=tar, spw="1")
 
 
-# TODO: change self so that it just keeps going till it reaches the number specified 
-    # Running first round of selfcal
-    selfround="1"
-    temp_imname = f"{imagename}{selfround}"
-    if args.cont is True: 
-        logger.debug(f"Continue on: checking for selfcal round{selfround}")
-        if os.path.exists(f"{calfile}_self{selfround}.cal"):
-            logger.debug(f"Found first round cal solution, NOT APPLYING!")
-            gaintable = [f"{calfile}_self{selfround}.cal"]
-        else: 
-            gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround)
-    else: 
-        gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround)
+# # TODO: change self so that it just keeps going till it reaches the number specified 
+#     # Splitting target MS to have just calibrated target ms 
+#     if args.cont is True:
+#         logger.debug(f"Contunue on, checking if there is the calibrated target ms before splitting")
+#         if os.path.exists(f"{msname}"):
+#             logger.debug("Found tar ms, skipping split")
+#         else: 
+#             split_ms(visname, msname, field=f"{tar}", spw=args.spw, n_spw=args.nspw, datacolumn="corrected")
+#     else: 
+#         if os.path.exists(f"{msname}"):
+#             os.system(f"rm -r {msname}")
+#             os.system(f"rm -r {msname}.flagversions")
+#             split_ms(visname, msname, field=f"{tar}", spw=args.spw, n_spw=args.nspw, datacolumn="corrected")
+#             logger.debug(f"remade split version")
+
+#     # Running first round of selfcal
+#     selfround="1"
+#     temp_imname = f"{imagename}{selfround}"
+#     if args.cont is True: 
+#         logger.debug(f"Continue on: checking for selfcal round{selfround}")
+#         if os.path.exists(f"{calfile}_self{selfround}.cal"):
+#             logger.debug(f"Found first round cal solution, NOT APPLYING!")
+#             gaintable = [f"{calfile}_self{selfround}.cal"]
+#         else: 
+#             gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround)
+#     else: 
+#         gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround)
     
-    # Running first self imaging 
-    if args.cont is True: 
-        logger.debug(f"Continue on: looking for images before starting again")
-        if os.path.exists(f"{imagename}{selfround}.image"):
-            logger.debug(f"Found image, not reimaging")
-        else:
-            temp_imname = f"{imagename}{selfround}" 
-            imgmfs_ms(msname, temp_imname, field=tar)
-    else: 
-        os.system(f"rm -r {imagename}{selfround}*")
-        temp_imname = f"{imagename}{selfround}"
-        imgmfs_ms(msname, temp_imname, field=tar)    
+#     # Running first self imaging 
+#     if args.cont is True: 
+#         logger.debug(f"Continue on: looking for images before starting again")
+#         if os.path.exists(f"{imagename}{selfround}.image"):
+#             logger.debug(f"Found image, not reimaging")
+#         else:
+#             temp_imname = f"{imagename}{selfround}" 
+#             imgmfs_ms(msname, temp_imname, field=tar)
+#     else: 
+#         os.system(f"rm -r {imagename}{selfround}*")
+#         temp_imname = f"{imagename}{selfround}"
+#         imgmfs_ms(msname, temp_imname, field=tar)    
 
-    # Running second round of selfcal
-    selfround="2"
-    temp_imname = f"{imagename}{selfround}"
-    if args.cont is True: 
-        logger.debug(f"Continue on: checking for selfcal round{selfround}")
-        if os.path.exists(f"{calfile}_self{selfround}.cal"):
-            logger.debug(f"Found first round cal solution, NOT APPLYING!")
-            gaintable = [f"{calfile}_self1.cal", f"{calfile}_self{selfround}.cal"]
-        else: 
-            gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround, solint="30s", gaintable=gaintable)
-    else: 
-        gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround, solint="30s", gaintable=gaintable)
+#     # Running second round of selfcal
+#     selfround="2"
+#     temp_imname = f"{imagename}{selfround}"
+#     if args.cont is True: 
+#         logger.debug(f"Continue on: checking for selfcal round{selfround}")
+#         if os.path.exists(f"{calfile}_self{selfround}.cal"):
+#             logger.debug(f"Found first round cal solution, NOT APPLYING!")
+#             gaintable = [f"{calfile}_self1.cal", f"{calfile}_self{selfround}.cal"]
+#         else: 
+#             gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround, solint="30s", gaintable=gaintable)
+#     else: 
+#         gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround, solint="30s", gaintable=gaintable)
     
-    # Running second self imaging 
-    if args.cont is True: 
-        logger.debug(f"Continue on: looking for images before starting again")
-        if os.path.exists(f"{imagename}{selfround}.image"):
-            logger.debug(f"Found image, not reimaging")
-        else:
-            temp_imname = f"{imagename}{selfround}" 
-            imgmfs_ms(msname, temp_imname, field=tar)
-    else: 
-        os.system(f"rm -r {imagename}{selfround}*")
-        temp_imname = f"{imagename}{selfround}"
-        imgmfs_ms(msname, temp_imname, field=tar)    
+#     # Running second self imaging 
+#     if args.cont is True: 
+#         logger.debug(f"Continue on: looking for images before starting again")
+#         if os.path.exists(f"{imagename}{selfround}.image"):
+#             logger.debug(f"Found image, not reimaging")
+#         else:
+#             temp_imname = f"{imagename}{selfround}" 
+#             imgmfs_ms(msname, temp_imname, field=tar)
+#     else: 
+#         os.system(f"rm -r {imagename}{selfround}*")
+#         temp_imname = f"{imagename}{selfround}"
+#         imgmfs_ms(msname, temp_imname, field=tar)    
 
 
-    # Running third round of selfcal
-    selfround="3"
-    temp_imname = f"{imagename}{selfround}"
-    if args.cont is True: 
-        logger.debug(f"Continue on: checking for selfcal round{selfround}")
-        if os.path.exists(f"{calfile}_self{selfround}.cal"):
-            logger.debug(f"Found first round cal solution, NOT APPLYING!")
-            gaintable = [f"{calfile}_self1.cal", f"{calfile}_self2.cal", f"{calfile}_self{selfround}.cal"]
-        else: 
-            gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround, solint="int", gaintable=gaintable)
-    else: 
-        gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround, solint="int", gaintable=gaintable)
+#     # Running third round of selfcal
+#     selfround="3"
+#     temp_imname = f"{imagename}{selfround}"
+#     if args.cont is True: 
+#         logger.debug(f"Continue on: checking for selfcal round{selfround}")
+#         if os.path.exists(f"{calfile}_self{selfround}.cal"):
+#             logger.debug(f"Found first round cal solution, NOT APPLYING!")
+#             gaintable = [f"{calfile}_self1.cal", f"{calfile}_self2.cal", f"{calfile}_self{selfround}.cal"]
+#         else: 
+#             gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround, solint="int", gaintable=gaintable)
+#     else: 
+#         gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround, solint="int", gaintable=gaintable)
     
-    # Running third self imaging 
-    if args.cont is True: 
-        logger.debug(f"Continue on: looking for images before starting again")
-        if os.path.exists(f"{imagename}{selfround}.image"):
-            logger.debug(f"Found image, not reimaging")
-        else:
-            temp_imname = f"{imagename}{selfround}" 
-            imgmfs_ms(msname, temp_imname, field=tar)
-    else: 
-        os.system(f"rm -r {imagename}{selfround}*")
-        temp_imname = f"{imagename}{selfround}"
-        imgmfs_ms(msname, temp_imname, field=tar)    
+#     # Running third self imaging 
+#     if args.cont is True: 
+#         logger.debug(f"Continue on: looking for images before starting again")
+#         if os.path.exists(f"{imagename}{selfround}.image"):
+#             logger.debug(f"Found image, not reimaging")
+#         else:
+#             temp_imname = f"{imagename}{selfround}" 
+#             imgmfs_ms(msname, temp_imname, field=tar)
+#     else: 
+#         os.system(f"rm -r {imagename}{selfround}*")
+#         temp_imname = f"{imagename}{selfround}"
+#         imgmfs_ms(msname, temp_imname, field=tar)    
 
 
 
-    # Running final amp and phase round of selfcal
-    selfround="4"
-    temp_imname = f"{imagename}{selfround}"
-    if args.cont is True: 
-        logger.debug(f"Continue on: checking for selfcal round{selfround}")
-        if os.path.exists(f"{calfile}_self{selfround}.cal"):
-            logger.debug(f"Found first round cal solution, NOT APPLYING!")
-            gaintable = [f"{calfile}_self1.cal", f"{calfile}_self2.cal", f"{calfile}_self{selfround}.cal"]
-        else: 
-            gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround, solint="inf", gaintable=gaintable,solnorm=True, calmode="ap")
-    else: 
-        gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround, solint="inf", gaintable=gaintable,solnorm=True, calmode="ap")
+#     # Running final amp and phase round of selfcal
+#     selfround="4"
+#     temp_imname = f"{imagename}{selfround}"
+#     if args.cont is True: 
+#         logger.debug(f"Continue on: checking for selfcal round{selfround}")
+#         if os.path.exists(f"{calfile}_self{selfround}.cal"):
+#             logger.debug(f"Found first round cal solution, NOT APPLYING!")
+#             gaintable = [f"{calfile}_self1.cal", f"{calfile}_self2.cal", f"{calfile}_self{selfround}.cal"]
+#         else: 
+#             gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround, solint="inf", gaintable=gaintable,solnorm=True, calmode="ap")
+#     else: 
+#         gaintable = slefcal_ms(calfile, msname, tar, selfround=selfround, solint="inf", gaintable=gaintable,solnorm=True, calmode="ap")
     
-    # Running third self imaging 
-    if args.cont is True: 
-        logger.debug(f"Continue on: looking for images before starting again")
-        if os.path.exists(f"{imagename}{selfround}.image"):
-            logger.debug(f"Found image, not reimaging")
-        else:
-            temp_imname = f"{imagename}{selfround}" 
-            imgmfs_ms(msname, temp_imname, field=tar)
-    else: 
-        os.system(f"rm -r {imagename}{selfround}*")
-        temp_imname = f"{imagename}{selfround}"
-        imgmfs_ms(msname, temp_imname, field=tar)  
+#     # Running third self imaging 
+#     if args.cont is True: 
+#         logger.debug(f"Continue on: looking for images before starting again")
+#         if os.path.exists(f"{imagename}{selfround}.image"):
+#             logger.debug(f"Found image, not reimaging")
+#         else:
+#             temp_imname = f"{imagename}{selfround}" 
+#             imgmfs_ms(msname, temp_imname, field=tar)
+#     else: 
+#         os.system(f"rm -r {imagename}{selfround}*")
+#         temp_imname = f"{imagename}{selfround}"
+#         imgmfs_ms(msname, temp_imname, field=tar)  
