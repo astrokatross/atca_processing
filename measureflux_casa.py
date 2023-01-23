@@ -20,12 +20,14 @@ elif band == "l":
 
 # TODO: add option to check if the band is there not just the file since it crashes for second freq atm
 for key in list(srcs.keys()):
-    # try:
-    #     dict_file = open(f"/home/cira/ATCA/bin/data/{key}_dict.json", "r")
-    #     src_dict = json.load(dict_file)
+    try:
+        dict_file = open(f"/home/cira/ATCA/bin/data/{key}_dict.json", "r")
+        src_dict = json.load(dict_file)
 
-    # except:
-    print("Couldn't find the file, refitting the day uv")
+    except:
+        print("Couldn't find the file, refitting the day uv")
+
+
     uvmodelfit(
         vis=ms,
         niter=10,
@@ -38,7 +40,7 @@ for key in list(srcs.keys()):
     fit = cl.getcomponent(0)
     flux = fit["flux"]["value"][0]
     srcs[key][f"{band}"][f"{day}"] = [flux]
-    src_dict = {f"{key}": {f"{band}": {f"{day}": flux}}}
+    src_dict[f"{band}"] = {f"{day}": flux}
     # src_dict[f"{key}"][f"{band}"][f"{day}"] = [flux]
 
 
@@ -63,7 +65,7 @@ for key in list(obsinfo.keys()):
         dict_file = open(f"/home/cira/ATCA/bin/data/{fieldname}_dict.json", "r+")
         src_dict = json.load(dict_file)
 
-        fitflux = src_dict[fieldname][f"{band}"][f"{day}"]
+        fitflux = src_dict[f"{band}"][f"{day}"]
         uvmodelfit(
             vis=ms,
             niter=10,
@@ -78,7 +80,7 @@ for key in list(obsinfo.keys()):
         tbl = cl.open(f"{fieldname}_{band}_{day}_{scan}.cl")
         fit = cl.getcomponent(0)
         flux = fit["flux"]["value"][0]
-        src_dict[fieldname][f"{band}"][f"{timestamp}"] = flux
+        src_dict[f"{band}"] = {f"{timestamp}": flux}
 
         with open(f"/home/cira/ATCA/bin/data/{fieldname}_dict.json", "w") as f: 
             json.dump(src_dict,f)
