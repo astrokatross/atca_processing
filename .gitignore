@@ -1,3 +1,4 @@
 *.log
 uvmodelfit.last
 *.last
+*.json
