@@ -1,6 +1,6 @@
 # Script to be run WITHIN CASA!
 day = "day4"
-band="x"
+band="c"
 
 
 filename = open("/home/cira/ATCA/bin/data/source_fluxesdict.json", "r")
@@ -23,24 +23,36 @@ for key in list(srcs.keys()):
     try:
         dict_file = open(f"/home/cira/ATCA/bin/data/{key}_dict.json", "r")
         src_dict = json.load(dict_file)
+        if day in list(src_dict.keys()):
+            print("Already has the flux for this day, moving on")
+        else: 
+            print("Couldn't find the file, refitting the day uv")
+            uvmodelfit(
+                vis=ms,
+                niter=10,
+                field=key,
+                selectdata=True,
+                spw="0",
+                outfile=f"{key}_{band}_{day}.cl"
+            )
+            src_dict = {f"{band}": {}}
+    except: 
+        print("Couldnt find the src dictionary file, making another one and fitting the uv")
+        uvmodelfit(
+            vis=ms,
+            niter=10,
+            field=key,
+            selectdata=True,
+            spw="0",
+            outfile=f"{key}_{band}_{day}.cl"
+        )
+        src_dict = {f"{band}": {}}
 
-    except:
-        print("Couldn't find the file, refitting the day uv")
 
-
-    uvmodelfit(
-        vis=ms,
-        niter=10,
-        field=key,
-        selectdata=True,
-        spw="0",
-        outfile=f"{key}_{band}_{day}.cl"
-    )
     tbl = cl.open(f"{key}_{band}_{day}.cl")
     fit = cl.getcomponent(0)
     flux = fit["flux"]["value"][0]
-    srcs[key][f"{band}"][f"{day}"] = [flux]
-    src_dict[f"{band}"] = {f"{day}": flux}
+    src_dict[f"{band}"][f"{day}"] =  flux
     # src_dict[f"{key}"][f"{band}"][f"{day}"] = [flux]
 
 
@@ -80,7 +92,7 @@ for key in list(obsinfo.keys()):
         tbl = cl.open(f"{fieldname}_{band}_{day}_{scan}.cl")
         fit = cl.getcomponent(0)
         flux = fit["flux"]["value"][0]
-        src_dict[f"{band}"] = {f"{timestamp}": flux}
+        src_dict[f"{band}"][f"{timestamp}"] =  flux
 
         with open(f"/home/cira/ATCA/bin/data/{fieldname}_dict.json", "w") as f: 
             json.dump(src_dict,f)
